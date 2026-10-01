@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/wyw14/cry-96/internal/journal"
 	"github.com/wyw14/cry-96/internal/model"
 )
@@ -47,6 +48,30 @@ func (s *Service) RemovePlan(chamberID string, plan model.ConvoyPlan) []QueueEnt
 
 func (s *Service) Restore(chamberID string, entries []QueueEntry) {
 	s.controller.queue.Restore(chamberID, entries)
+}
+
+// ReplacePlan swaps a plan's queued block for the supplied vessels at the same
+// anchor. It returns the previous block verbatim (with Released flags) so a
+// caller can restore it exactly by calling RestoreBlock on rollback.
+func (s *Service) ReplacePlan(chamberID string, planID uuid.UUID, vessels []model.Vessel) []QueueEntry {
+	block := make([]QueueEntry, 0, len(vessels))
+	for _, vessel := range vessels {
+		block = append(block, QueueEntry{Vessel: vessel, PlanID: planID})
+	}
+	return s.controller.queue.ReplacePlanEntries(chamberID, planID, block)
+}
+
+// RestoreBlock reinserts an exact queue block captured from ReplacePlan.
+func (s *Service) RestoreBlock(chamberID string, planID uuid.UUID, block []QueueEntry) {
+	s.controller.queue.ReplacePlanEntries(chamberID, planID, block)
+}
+
+func (s *Service) MarkReleased(chamberID string, vesselIDs []uuid.UUID) {
+	s.controller.queue.MarkManyReleased(chamberID, vesselIDs)
+}
+
+func (s *Service) PlanReleased(chamberID string, planID uuid.UUID) bool {
+	return s.controller.queue.PlanReleased(chamberID, planID)
 }
 
 func (s *Service) List(chamberID string) []QueueEntry {

@@ -122,3 +122,17 @@ func (c *Commands) Get(commandID uuid.UUID) (model.DeviceCommand, bool) {
 	c.mu.RUnlock()
 	return command, ok
 }
+
+// HasForCycle reports whether any device command (gate or valve) was ever
+// issued for the transit generation, including settled ones: a settled command
+// means the device action really happened and the plan can no longer be edited.
+func (c *Commands) HasForCycle(cycleID uuid.UUID) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, command := range c.byID {
+		if command.CycleID == cycleID {
+			return true
+		}
+	}
+	return false
+}

@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/wyw14/cry-96/internal/model"
@@ -24,14 +23,12 @@ func (s *Service) Create(ctx context.Context, chamberID string, direction model.
 }
 
 func (s *Service) Publish(ctx context.Context, planID uuid.UUID, cycle model.TransitCycle) (signal.Publication, error) {
-	plan, ok := s.planner.Get(planID)
-	if !ok || plan.Cancelled {
-		return signal.Publication{}, errors.New("active convoy plan not found")
-	}
-	if plan.ChamberID != cycle.ChamberID || plan.ID != cycle.PlanID {
-		return signal.Publication{}, errors.New("plan and transit do not match")
-	}
-	return s.publisher.Publish(ctx, cycle, plan.Vessels, model.SignalProceed)
+	return s.planner.Publish(ctx, planID, cycle, s.publisher)
+}
+
+// Revise rewrites a plan's vessel sequence as one atomic operation.
+func (s *Service) Revise(ctx context.Context, planID uuid.UUID, expectedVersion uint32, items []RevisionItem, note string) (RevisionResult, *RevisionError) {
+	return s.planner.Revise(ctx, planID, expectedVersion, items, note, s.publisher)
 }
 
 func (s *Service) Cancel(ctx context.Context, planID uuid.UUID, note string, publication signal.Publication) (Cancellation, error) {
@@ -40,4 +37,20 @@ func (s *Service) Cancel(ctx context.Context, planID uuid.UUID, note string, pub
 
 func (s *Service) Active(chamberID string) []model.ConvoyPlan {
 	return s.planner.Active(chamberID)
+}
+
+func (s *Service) Get(planID uuid.UUID) (model.ConvoyPlan, bool) {
+	return s.planner.Get(planID)
+}
+
+func (s *Service) Inspect(planID uuid.UUID) (PlanStatus, bool) {
+	return s.planner.Inspect(planID)
+}
+
+func (s *Service) ActiveViews(chamberID string) []PlanStatus {
+	return s.planner.ActiveViews(chamberID)
+}
+
+func (s *Service) History(planID uuid.UUID) []model.PlanRevision {
+	return s.planner.History(planID)
 }

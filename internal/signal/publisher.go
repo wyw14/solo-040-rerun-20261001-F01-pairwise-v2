@@ -3,6 +3,7 @@ package signal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,36 @@ func (p *Publisher) Publish(ctx context.Context, cycle model.TransitCycle, vesse
 		publication.Published = append(publication.Published, vessel.ID)
 		if _, err := p.recorder.Record(ctx, cycle.ChamberID, model.EventSignalChanged, cycle.ID, cycle.Generation, state); err != nil {
 			p.Compensate(context.WithoutCancel(ctx), cycle.ChamberID, publication)
+			return publication, err
+		}
+	}
+	return publication, nil
+}
+
+// DropUnpublished clears vessel signals that have not been released yet.
+// A proceed aspect means the vessel was already released and must never be
+// dropped here; encountering one is an error so callers fall back to rejection.
+// Captured prior states make the returned Publication usable with Compensate.
+func (p *Publisher) DropUnpublished(ctx context.Context, chamberID string, vesselIDs []uuid.UUID) (Publication, error) {
+	publication := Publication{Previous: make(map[uuid.UUID]model.SignalState)}
+	for _, vesselID := range vesselIDs {
+		previous, ok := p.store.Get(vesselID)
+		if !ok {
+			continue
+		}
+		if previous.Aspect == model.SignalProceed {
+			if err := p.Compensate(ctx, chamberID, publication); err != nil {
+				return publication, err
+			}
+			return publication, fmt.Errorf("vessel %s already released (proceed signal)", vesselID)
+		}
+		publication.Previous[vesselID] = previous
+		p.store.Remove(vesselID)
+		publication.Published = append(publication.Published, vesselID)
+		if _, err := p.recorder.Record(ctx, chamberID, model.EventSignalChanged, previous.CycleID, previous.Generation, map[string]any{
+			"vessel_id": vesselID, "dropped_unpublished": true,
+		}); err != nil {
+			p.Compensate(context.WithoutCancel(ctx), chamberID, publication)
 			return publication, err
 		}
 	}

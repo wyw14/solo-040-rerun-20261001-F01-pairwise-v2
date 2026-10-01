@@ -56,6 +56,33 @@ func (q *Queue) MarkReleased(chamberID string, vesselID uuid.UUID) bool {
 	return false
 }
 
+// MarkManyReleased flags every matching vessel as released in one lock step.
+func (q *Queue) MarkManyReleased(chamberID string, vesselIDs []uuid.UUID) {
+	wanted := make(map[uuid.UUID]struct{}, len(vesselIDs))
+	for _, id := range vesselIDs {
+		wanted[id] = struct{}{}
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for index := range q.entries[chamberID] {
+		if _, ok := wanted[q.entries[chamberID][index].Vessel.ID]; ok {
+			q.entries[chamberID][index].Released = true
+		}
+	}
+}
+
+// PlanReleased reports whether any queued entry of the plan is already released.
+func (q *Queue) PlanReleased(chamberID string, planID uuid.UUID) bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	for _, entry := range q.entries[chamberID] {
+		if entry.PlanID == planID && entry.Released {
+			return true
+		}
+	}
+	return false
+}
+
 func (q *Queue) RemovePlan(chamberID string, planID uuid.UUID) []QueueEntry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -70,6 +97,43 @@ func (q *Queue) RemovePlan(chamberID string, planID uuid.UUID) []QueueEntry {
 		}
 	}
 	q.entries[chamberID] = append([]QueueEntry(nil), kept...)
+	return removed
+}
+
+// ReplacePlanEntries swaps every entry owned by planID for the supplied block
+// in one locked step. The block is inserted at the anchor of the plan's first
+// current entry so the relative order of other plans is preserved; when the
+// plan is absent the block is appended. Supplied entries keep their Released
+// flags, which lets a saga restore an exact prior block on rollback.
+// It returns the entries that were replaced.
+func (q *Queue) ReplacePlanEntries(chamberID string, planID uuid.UUID, block []QueueEntry) []QueueEntry {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	current := q.entries[chamberID]
+	keptBefore := 0
+	seenPlan := false
+	removed := make([]QueueEntry, 0)
+	kept := make([]QueueEntry, 0, len(current))
+	for _, entry := range current {
+		if entry.PlanID == planID {
+			if !seenPlan {
+				seenPlan = true
+				keptBefore = len(kept)
+			}
+			removed = append(removed, entry)
+		} else {
+			kept = append(kept, entry)
+		}
+	}
+	if !seenPlan {
+		// Plan not currently queued: anchor at the tail.
+		keptBefore = len(kept)
+	}
+	updated := make([]QueueEntry, 0, len(kept)+len(block))
+	updated = append(updated, kept[:keptBefore]...)
+	updated = append(updated, block...)
+	updated = append(updated, kept[keptBefore:]...)
+	q.entries[chamberID] = updated
 	return removed
 }
 

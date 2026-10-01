@@ -17,6 +17,8 @@ type Cancellation struct {
 
 // Cancel reverts queue and field-signal effects as one observable operation.
 func (p *Planner) Cancel(ctx context.Context, planID uuid.UUID, note string, publisher *signal.Publisher, publication signal.Publication) (Cancellation, error) {
+	p.ops.Lock()
+	defer p.ops.Unlock()
 	plan, err := p.require(planID)
 	if err != nil {
 		return Cancellation{}, err

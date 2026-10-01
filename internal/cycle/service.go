@@ -18,6 +18,13 @@ func NewService(coordinator *Coordinator, admissionService *admission.Service) *
 	return &Service{coordinator: coordinator, admission: admissionService}
 }
 
+// Plan registers the planned transit generation without admitting a vessel.
+// Creation is thereby decoupled from release: no proceed signal is issued
+// until the operator explicitly publishes it.
+func (s *Service) Plan(ctx context.Context, plan model.ConvoyPlan) (model.TransitCycle, error) {
+	return s.coordinator.Start(ctx, plan)
+}
+
 func (s *Service) Start(ctx context.Context, plan model.ConvoyPlan) (model.TransitCycle, error) {
 	cycleValue, err := s.coordinator.Start(ctx, plan)
 	if err != nil {

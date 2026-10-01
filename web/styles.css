@@ -53,6 +53,23 @@ th { color: #91a0a8; font-weight: 600; }
 .status.warning::before { background: #f2c14e; }
 .status.critical::before { background: #ef6f6c; }
 .message { min-height: 22px; color: #f2c14e; font-size: 13px; margin-top: 10px; white-space: pre-wrap; }
+.plan-list { display: flex; flex-direction: column; gap: 12px; }
+.plan-card { border: 1px solid #2c3941; border-radius: 6px; padding: 14px; background: #131a20; }
+.plan-card.locked { opacity: .92; }
+.plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.plan-head .spacer { flex: 1; }
+.badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid #5bc0be; color: #5bc0be; }
+.badge.stage { border-color: #f2c14e; color: #f2c14e; }
+.badge.locked-badge { border-color: #ef6f6c; color: #ef6f6c; }
+.vessel-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.vessel-row { display: grid; grid-template-columns: 28px 1fr 120px 90px auto; gap: 8px; align-items: center; }
+.vessel-row .vname { font-weight: 600; }
+.vessel-row .vsub { color: #91a0a8; font-size: 12px; }
+.vessel-row button { min-height: 30px; padding: 2px 8px; font-size: 12px; }
+.iconbtn { min-width: 34px; }
+.add-row { display: grid; grid-template-columns: 1fr 120px 90px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.plan-actions { display: flex; gap: 8px; align-items: center; }
+.reject { color: #ef6f6c; font-size: 13px; margin: 6px 0; }
 @media (max-width: 780px) {
   header { height: auto; padding: 14px 18px; align-items: flex-start; flex-direction: column; gap: 10px; }
   main { padding: 20px 16px 40px; }
