@@ -70,3 +70,59 @@ func (p *Publisher) Compensate(ctx context.Context, chamberID string, publicatio
 	}
 	return combined
 }
+
+// SignalRevision records which vessel signals were withdrawn by a plan
+// revision, together with their previous aspects for rollback.
+type SignalRevision struct {
+	CycleID    uuid.UUID
+	Generation uint64
+	Withdrawn  []uuid.UUID
+	Previous   map[uuid.UUID]model.SignalState
+}
+
+// ReviseSignals withdraws the provisional pre-admission signals that a plan's
+// vessels currently hold for the live transit generation. Because the vessel
+// order (and therefore which queue entry is entitled to "proceed") may
+// change, all such signals are cleared; the caller re-evaluates admission
+// afterwards to grant the new queue head. Signals belonging to another
+// transit generation are untouched.
+func (p *Publisher) ReviseSignals(ctx context.Context, chamberID string, cycleID uuid.UUID, generation uint64, oldVessels []model.Vessel) (SignalRevision, error) {
+	revision := SignalRevision{
+		CycleID: cycleID, Generation: generation,
+		Previous: make(map[uuid.UUID]model.SignalState),
+	}
+	for _, vessel := range oldVessels {
+		state, ok := p.store.Get(vessel.ID)
+		if !ok || state.CycleID != cycleID || state.Generation != generation {
+			continue
+		}
+		revision.Previous[vessel.ID] = state
+		p.store.Remove(vessel.ID)
+		revision.Withdrawn = append(revision.Withdrawn, vessel.ID)
+		if _, err := p.recorder.Record(ctx, chamberID, model.EventSignalChanged, cycleID, generation, map[string]any{
+			"vessel_id": vessel.ID, "revised": true, "withdrawn": true,
+		}); err != nil {
+			p.CompensateRevision(context.WithoutCancel(ctx), chamberID, revision)
+			return SignalRevision{}, err
+		}
+	}
+	return revision, nil
+}
+
+// CompensateRevision restores signals withdrawn by ReviseSignals.
+func (p *Publisher) CompensateRevision(ctx context.Context, chamberID string, revision SignalRevision) error {
+	var combined error
+	for index := len(revision.Withdrawn) - 1; index >= 0; index-- {
+		vesselID := revision.Withdrawn[index]
+		previous, ok := revision.Previous[vesselID]
+		if !ok {
+			continue
+		}
+		p.store.Set(previous.VesselID, previous.CycleID, previous.Generation, previous.Aspect, p.now())
+		_, err := p.recorder.Record(ctx, chamberID, model.EventSignalChanged, revision.CycleID, revision.Generation, map[string]any{
+			"vessel_id": vesselID, "compensated": true, "revised": true,
+		})
+		combined = errors.Join(combined, err)
+	}
+	return combined
+}

@@ -13,6 +13,8 @@ type EventType string
 const (
 	EventPlanCreated      EventType = "plan.created"
 	EventPlanCancelled    EventType = "plan.cancelled"
+	EventPlanRevised      EventType = "plan.revised"
+	EventPlanRejected     EventType = "plan.revision_rejected"
 	EventCycleCreated     EventType = "cycle.created"
 	EventCycleAdvanced    EventType = "cycle.advanced"
 	EventCommandQueued    EventType = "command.queued"

@@ -38,6 +38,12 @@ func (s *Service) Cancel(ctx context.Context, planID uuid.UUID, note string, pub
 	return s.planner.Cancel(ctx, planID, note, s.publisher, publication)
 }
 
+// Revise modifies vessel order/membership of a plan that has not entered the
+// lock. It preserves plan identity, bumps the version and retains history.
+func (s *Service) Revise(ctx context.Context, planID uuid.UUID, expectedVersion uint64, vessels []model.Vessel, note string) (RevisionResult, error) {
+	return s.planner.Revise(ctx, planID, expectedVersion, vessels, note, s.publisher)
+}
+
 func (s *Service) Active(chamberID string) []model.ConvoyPlan {
 	return s.planner.Active(chamberID)
 }

@@ -122,3 +122,16 @@ func (c *Commands) Get(commandID uuid.UUID) (model.DeviceCommand, bool) {
 	c.mu.RUnlock()
 	return command, ok
 }
+
+// HasActivity reports whether any gate or valve command has ever been issued
+// for a transit generation, including ones already settled.
+func (c *Commands) HasActivity(cycleID uuid.UUID, generation uint64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, command := range c.byID {
+		if command.CycleID == cycleID && command.Generation == generation {
+			return true
+		}
+	}
+	return false
+}

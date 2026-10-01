@@ -19,17 +19,25 @@ type Planner struct {
 	plans     map[uuid.UUID]model.ConvoyPlan
 	admission *admission.Service
 	recorder  *journal.Recorder
+	cycles    TransitStatus
+	devices   DeviceActivity
 	now       func() time.Time
 }
 
-func NewPlanner(admissionService *admission.Service, recorder *journal.Recorder, now func() time.Time) *Planner {
+func NewPlanner(admissionService *admission.Service, devices DeviceActivity, recorder *journal.Recorder, now func() time.Time) *Planner {
 	if now == nil {
 		now = time.Now
 	}
 	return &Planner{
 		plans: make(map[uuid.UUID]model.ConvoyPlan), admission: admissionService,
-		recorder: recorder, now: now,
+		devices: devices, recorder: recorder, now: now,
 	}
+}
+
+// BindTransitStatus wires the live transit lookup, which is constructed after
+// the planner during runtime assembly.
+func (p *Planner) BindTransitStatus(cycles TransitStatus) {
+	p.cycles = cycles
 }
 
 func (p *Planner) Create(ctx context.Context, chamberID string, direction model.Direction, vessels []model.Vessel) (model.ConvoyPlan, error) {

@@ -45,6 +45,17 @@ func (s *Service) RemovePlan(chamberID string, plan model.ConvoyPlan) []QueueEnt
 	return s.controller.queue.RemovePlan(chamberID, plan.ID)
 }
 
+// ReplacePlan rewrites a plan's waiting-queue slots. The planner owns the
+// authoritative revision event once the whole revision commits.
+func (s *Service) ReplacePlan(plan model.ConvoyPlan) (PlanQueueChange, []QueueEntry, error) {
+	return s.controller.queue.ReplacePlan(plan.ChamberID, plan.ID, plan.Vessels)
+}
+
+// RestorePlanEntries compensates a queue replacement when revision commit fails.
+func (s *Service) RestorePlanEntries(plan model.ConvoyPlan, displaced []QueueEntry) {
+	s.controller.queue.RestorePlanEntries(plan.ChamberID, plan.ID, displaced)
+}
+
 func (s *Service) Restore(chamberID string, entries []QueueEntry) {
 	s.controller.queue.Restore(chamberID, entries)
 }
